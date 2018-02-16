@@ -2,5 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
+.DS_Store
 Allstorms.ibtracs_wmo.v03r10.csv
 README.wmo_format
