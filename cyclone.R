@@ -4,13 +4,15 @@
 library(data.table)
 
 cycl = fread("/Users/eprau/EPR/Toulouse/UPS/Stage_M2/cyclone/Allstorms.ibtracs_wmo.v03r10.csv", skip = 1)
+
+#keep the row that describes unity separately
 unit = cycl[1, ]
 cycl = cycl[-1, ]
 cycl$ISO_time = as.POSIXct(cycl$ISO_time, tz = "GMT")
 cycl$Longitude = as.numeric(cycl$Longitude)
 cycl$Latitude = as.numeric(cycl$Latitude)
 
-cycl2001 = cycl[Season == 2001 & Basin == "WP", ]
+cycl2001 = cycl[Season == 2001, ] #limit to the year 2001
 
 #https://en.wikipedia.org/wiki/Decimal_degrees
 #https://gis.stackexchange.com/questions/142326/calculating-longitude-length-in-miles
@@ -18,9 +20,9 @@ cycl2001 = cycl[Season == 2001 & Basin == "WP", ]
 lon = 121.5578
 lat = 24.7611
 trig = cos(lat)
-degkm = 111.32
-cycl2001$Distance = sqrt(((cycl2001$Longitude - lon) * degkm * trig) ^ 2 + ((cycl2001$Latitude - lat) * degkm) ^ 2)
+degkm = 111.32 #distance of one degree in kilometers at equateur
+cycl2001$Distance = sqrt(((cycl2001$Longitude - lon) * degkm * trig) ^ 2 + ((cycl2001$Latitude - lat) * degkm) ^ 2) #calculate distance from specified lcoation
 
-thres = 250
+thres = 250 #set threshold
 cycl_sel = cycl2001[Distance <= thres, ]
 cycl_sel
