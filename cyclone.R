@@ -23,10 +23,7 @@ cycl_jtwc[, c(9:12, 14:15, 17:18, 20:24)] = lapply(cycl_jtwc[, c(9:12, 14:15, 17
 cycl_jtwc$Season_Name = paste0(cycl_jtwc$Season, cycl_jtwc$Name)
 
 #Filter cyclones ----
-year = 2001
-lon = 121.5578
-lat = 24.7611
-thres = 200 #set threshold
+year = 1991:2010
 use = "tokyo" #which database to use
 
 if(use == "tokyo"){
@@ -37,14 +34,26 @@ if(use == "tokyo"){
   print("Not the correct type of database")
 }
 
+#Retrieve information ----
+
 #https://en.wikipedia.org/wiki/Decimal_degrees
 #https://gis.stackexchange.com/questions/142326/calculating-longitude-length-in-miles
 #https://gis.stackexchange.com/questions/8650/measuring-accuracy-of-latitude-and-longitude/8674#8674
 #111.32: distance of one degree in kilometers at equateur
-cycl_filt$Distance = sqrt(((cycl_filt$Longitude - lon) * 111.32 * cos(lat)) ^ 2 +
-                            ((cycl_filt$Latitude - lat) * 111.32) ^ 2) #calculate distance from specified lcoation
-cycl_sel = cycl_filt[Distance <= thres, ]
-todraw = unique(cycl_sel$Season_Name)
+RetrCycl = function(base, lon, lat, thres){
+  #calculate distance from specified lcoation, and select only those under a threshold
+  cycl_sel = base[sqrt(((Longitude - lon) * 111.32 * cos(lat)) ^ 2 +
+                         ((Latitude - lat) * 111.32) ^ 2) <= thres, ]
+  todraw = unique(cycl_sel$Season_Name)
+  freq = length(todraw) / length(year)
+  dur = nrow(cycl_sel) / length(year)
+  wind_int = mean(tapply(cycl_sel$`Wind(WMO)`, cycl_sel$Season_Name, max))
+  press_int = mean(tapply(cycl_sel$`Pres(WMO)`, cycl_sel$Season_Name, min))
+  return(list(Names = todraw, Frequency = freq, Duration = dur, 
+              Wind_Intensity = wind_int, Pressure_Intensity = press_int))
+}
+
+dat = RetrCycl(cycl_filt, lon = 121.5578, lat = 24.7611, thres = 150)
 
 #Draw maps ----
 # library(maps)
@@ -61,12 +70,17 @@ if(use == "tokyo"){
   ggmap(tw) + 
     geom_point(data = as.data.frame(c(lon, lat)), shape = 8) +
     geom_path(data = cycl_filt[Season_Name %in% todraw, ], aes(x = Longitude, y = Latitude, group = Season_Name, color = Season_Name))
+  year_name = ifelse(length(year) == 1, year, paste(year[1], rev(year)[1], sep = "_"))
+  ggsave(paste0("season", year_name, "jma.png"))
 } else if (use == "jtwc"){
   ggmap(tw) + 
     geom_point(data = as.data.frame(c(lon, lat)), shape = 8) +
     geom_path(data = cycl_filt[Season_Name %in% todraw, ], aes(x = Longitude_for_mapping, y = Latitude_for_mapping, group = Season_Name, color = Season_Name))
+  year_name = ifelse(length(year) == 1, year, paste(year[1], rev(year)[1], sep = "_"))
+  ggsave(paste0("season", year_name, "jtwc.png"))
+         
 } else {
   print("Incorrect database name")
 }
 
-fwrite(cycl_sel, "/Users/eprau/EPR/Toulouse/UPS/Stage_M2/cyclone_sel.csv")
+fwrite(cycl_sel, "cyclone_sel.csv")
