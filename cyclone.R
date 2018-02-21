@@ -23,7 +23,7 @@ cycl_jtwc[, c(9:12, 14:15, 17:18, 20:24)] = lapply(cycl_jtwc[, c(9:12, 14:15, 17
 cycl_jtwc$Season_Name = paste0(cycl_jtwc$Season, cycl_jtwc$Name)
 
 #Filter cyclones ----
-year = 1991:2010
+year = 2001:2010
 use = "tokyo" #which database to use
 
 if(use == "tokyo"){
@@ -34,12 +34,61 @@ if(use == "tokyo"){
   print("Not the correct type of database")
 }
 
+#Retrieve on raster ----
+library(raster)
+library(geosphere)
+library(maps)
+library(mapdata)
+library(mapproj)
+
+thres = 150 #maximum distance between position and cyclones
+start.time = Sys.time()
+coord = as.matrix(data.frame(lon = rep(seq(0.5, 179.5, by = 1), 90), lat = rep(seq(89.5, 0.5, by = -1), each = 180)))
+mat = distm(cycl_filt[, list(Longitude, Latitude)], coord) / 1000
+lst = split(t(mat), seq(nrow(t(mat))))
+cycl_sel = lapply(lst, function(x) cycl_filt[which(x < thres), ])
+frequ = lapply(cycl_sel, function(x) length(unique(x$Season_Name)) / length(year))
+dur = lapply(cycl_sel, function(x) nrow(x) / length(year))
+wind_int = lapply(cycl_sel, function(x) mean(tapply(x$`Wind(WMO)`, x$Season_Name, max)))
+press_int = lapply(cycl_sel, function(x) mean(tapply(x$`Pres(WMO)`, x$Season_Name, min)))
+end.time = Sys.time()
+time.diff = end.time - start.time
+time.diff
+
+PlotCycl = function(val, filename){
+  ras = raster(xmn = 0, xmx = 180, ymn = 0, ymx = 90, resolution = 1)
+  values(ras) = unlist(get(val))
+  pdf(paste0("/Users/eprau/EPR/Toulouse/UPS/Stage_M2/", filename, ".pdf"))
+  if(val == "press_int"){
+    breakpoints = 800:1100
+    arg = list(at = seq(800, 1100, by = 50), labels = seq(800, 1100, by = 50))
+    plot(ras, col = heat.colors(300), breaks = breakpoints, axis.args = arg, zlim = c(800, 1100))
+  } else if(val == "wind_int"){
+    plot(ras, col = rev(heat.colors(300)))
+  } else {
+    plot(ras)
+  }
+  map(database = "world", xlim = c(0, 180), ylim = c(0, 90), add = T)
+  abline(h = 24, v = 121, lty = 3)
+  dev.off()
+}
+
+PlotCycl("frequ", "cyclone_freq")
+PlotCycl("dur", "cyclone_dur")
+PlotCycl("wind_int", "cyclone_wind")
+PlotCycl("press_int", "cyclone_press")
+
+ras = raster(xmn = 0, xmx = 180, ymn = 0, ymx = 90, resolution = 1)
+values(ras) = unlist(press_int)
+
+
 #Retrieve information ----
 
 #https://en.wikipedia.org/wiki/Decimal_degrees
 #https://gis.stackexchange.com/questions/142326/calculating-longitude-length-in-miles
 #https://gis.stackexchange.com/questions/8650/measuring-accuracy-of-latitude-and-longitude/8674#8674
 #111.32: distance of one degree in kilometers at equateur
+#https://stackoverflow.com/questions/31668163/geographic-geospatial-distance-between-2-lists-of-lat-lon-points-coordinates
 RetrCycl = function(base, lon, lat, thres){
   #calculate distance from specified lcoation, and select only those under a threshold
   cycl_sel = base[sqrt(((Longitude - lon) * 111.32 * cos(lat)) ^ 2 +
@@ -65,6 +114,7 @@ dat = RetrCycl(cycl_filt, lon = 121.5578, lat = 24.7611, thres = 150)
 library(ggplot2)
 library(ggmap)
 tw = get_map(c(lon = lon, lat = lat), scale = 2, zoom = 5, maptype = "satellite", source = "google")
+
 
 if(use == "tokyo"){
   ggmap(tw) + 
