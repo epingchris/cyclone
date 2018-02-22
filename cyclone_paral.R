@@ -1,9 +1,10 @@
 #https://www.ncdc.noaa.gov/ibtracs/index.php?name=numbering
 #https://www.ncdc.noaa.gov/ibtracs/index.php?name=wmo-var
 #Time zone: UTC
-library(data.table)
+rm(list = ls())
 
-#Retrieve data ----
+#Prepare ----
+library(data.table)
 cycl = fread("Allstorms.ibtracs_wmo.v03r10.csv", skip = 1)
   
 #separate the row that describes unit
@@ -15,45 +16,81 @@ cycl[, c(9:12, 14:15)] = lapply(cycl[, c(9:12, 14:15)], as.numeric)
 cycl$ISO_time = as.POSIXct(cycl$ISO_time, tz = "GMT")
 cycl$Season_Name = paste0(cycl$Season, cycl$Name)
 
-#Filter cyclones ----
-year = 2001:2010
-cycl_filt = cycl[Season %in% year, ]
-
-#Retrieve and store in raster ----
-library(geosphere)
-
-thres = 150 #maximum distance between position and cyclones
-coord = as.matrix(data.frame(lon = rep(seq(-179.75, 179.75, by = 0.5), 360), lat = rep(seq(89.75, -89.75, by = -0.5), each = 720)))
-mat = distm(cycl_filt[, list(Longitude, Latitude)], coord) / 1000
-lst = split(t(mat), seq(nrow(t(mat))))
-cycl_sel = lapply(lst, function(x) cycl_filt[which(x < thres), ])
-frequ = lapply(cycl_sel, function(x) length(unique(x$Season_Name)) / length(year))
-dur = lapply(cycl_sel, function(x) nrow(x) / length(year))
-wind_int = lapply(cycl_sel, function(x) mean(tapply(x$`Wind(WMO)`, x$Season_Name, max)))
-press_int = lapply(cycl_sel, function(x) mean(tapply(x$`Pres(WMO)`, x$Season_Name, min)))
-
+#Retrieve ----
+library(geosphere, lib.loc = "R_library")
+library(sp)
 library(raster)
-library(maps)
 
-PlotCycl = function(val, filename){
-  ras = raster(xmn = -180, xmx = 180, ymn = 90, ymx = 90, resolution = 0.5)
-  values(ras) = unlist(get(val))
-  pdf(paste0("/Users/eprau/EPR/Toulouse/UPS/Stage_M2/", filename, ".pdf"))
-  if(val == "press_int"){
-    breakpoints = 800:1100
+RetrCycl = function(year, x0, x1, y0, y1, resol, thres = 150, mapout = T, mapname = "map"){
+  cycl_filt = cycl[Season %in% year, ] #filter by year
+  
+  #set up global coordinates
+  lon = rep(seq(x0 + resol / 2, x1 - resol / 2, by = resol), (y1 - y0))
+  lat = rep(seq(y1 - resol / 2, y0 + resol / 2, by = -resol), each = (x1 - x0))
+  coord = SpatialPointsDataFrame(matrix(c(lon, lat), ncol = 2), data.frame(ID = seq(1:length(lon))),
+                                 proj4string = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+  
+  #set up coordinates of typhoon events
+  coord_cycl = SpatialPointsDataFrame(as.matrix(cycl_filt[, list(Longitude, Latitude)]), data.frame(pt = seq(1:nrow(cycl_filt))),
+                                      proj4string = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+  
+  mat = distm(coord_cycl, coord) / 1000 #calculate distance
+  lst = split(t(mat), seq(nrow(t(mat))))
+  cycl_sel = lapply(lst, function(x) cycl_filt[which(x < thres), ]) #filter by distance
+  frequ = lapply(cycl_sel, function(x) length(unique(x$Season_Name)) / length(year)) #frequency (number of typhoons)
+  dur = lapply(cycl_sel, function(x) nrow(x) / length(year)) #duration (number of records)
+  wind = lapply(cycl_sel, function(x) mean(tapply(x$`Wind(WMO)`, x$Season_Name, max))) #maximum wind speed
+  press = lapply(cycl_sel, function(x) mean(tapply(x$`Pres(WMO)`, x$Season_Name, min))) #minimum atmospheric pressure
+  
+  #store in rasters
+  ras.freq = raster(xmn = x0, xmx = x1, ymn = y0, ymx = y1, resolution = resol)
+  ras.dur = raster(xmn = x0, xmx = x1, ymn = y0, ymx = y1, resolution = resol)
+  ras.wind = raster(xmn = x0, xmx = x1, ymn = y0, ymx = y1, resolution = resol)
+  ras.press = raster(xmn = x0, xmx = x1, ymn = y0, ymx = y1, resolution = resol)
+  values(ras.freq) = unlist(get(frequ))
+  values(ras.dur) = unlist(get(dur))
+  values(ras.wind) = unlist(get(wind))
+  values(ras.press) = unlist(get(press))
+  writeRaster(ras.freq, paste0("/res_cycl/", mapname, "_freq.grd"), format = "raster")
+  writeRaster(ras.dur, paste0("/res_cycl/", mapname, "_dur.grd"), format = "raster")
+  writeRaster(ras.wind, paste0("/res_cycl/", mapname, "_wind.grd"), format = "raster")
+  writeRaster(ras.press, paste0("/res_cycl/", mapname, "_press.grd"), format = "raster")
+  
+  if(mapout){
+    library(maps)
+    
+    #plot frequency
+    pdf(paste0("/res_cycl/", mapname, "_freq.pdf"))
+    plot(ras.freq, col = rev(heat.colors(300)))
+    map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
+    abline(h = 24, v = 121, lty = 3)
+    dev.off()
+    
+    #plot duration
+    pdf(paste0("/res_cycl/", mapname, "_dur.pdf"))
+    plot(ras.dur, col = rev(heat.colors(300)))
+    map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
+    abline(h = 24, v = 121, lty = 3)
+    dev.off()
+    
+    #plot wind speed
+    pdf(paste0("/res_cycl/", mapname, "_wind.pdf"))
+    plot(ras.wind, col = rev(heat.colors(300)))
+    map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
+    abline(h = 24, v = 121, lty = 3)
+    dev.off()
+    
+    #plot atmospheric pressure
+    pdf(paste0("/res_cycl/", mapname, "_press.pdf"))
     arg = list(at = seq(800, 1100, by = 50), labels = seq(800, 1100, by = 50))
-    plot(ras, col = heat.colors(300), breaks = breakpoints, axis.args = arg, zlim = c(800, 1100))
-  } else if(val == "wind_int"){
-    plot(ras, col = rev(heat.colors(300)))
-  } else {
-    plot(ras)
+    plot(ras.press, col = heat.colors(300), breaks = 800:1100, axis.args = arg, zlim = c(800, 1100))
+    map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
+    abline(h = 24, v = 121, lty = 3)
+    dev.off()
   }
-  map(database = "world", xlim = c(-180, 180), ylim = c(-90, 90), add = T)
-  abline(h = 24, v = 121, lty = 3)
-  dev.off()
 }
 
-PlotCycl("frequ", "cyclone_freq")
-PlotCycl("dur", "cyclone_dur")
-PlotCycl("wind_int", "cyclone_wind")
-PlotCycl("press_int", "cyclone_press")
+#RetrCycl(year = 2001:2003, x0 = 0, x1 = 180, y0 = 0, y1 = 90, resol = 1, mapname = "NE")
+RetrCycl(year = 2001:2003, x0 = 0, x1 = 180, y0 = 0, y1 = 90, resol = 0.5, mapname = "fine_NE")
+RetrCycl(year = 2001:2003, x0 = -180, x1 = 180, y0 = -90, y1 = 90, resol = 1, mapname = "world")
+#RetrCycl(year = 2001:2003, x0 = -180, x1 = 180, y0 = -90, y1 = 90, resol = 0.5, mapname = "fine_world")
