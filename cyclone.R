@@ -35,7 +35,38 @@ if(use == "tokyo"){
 cycl$ISO_time = as.POSIXct(cycl$ISO_time, tz = "GMT")
 cycl$Season_Name = paste0(cycl$Season, cycl$Name)
 
-#Retrieve ----
+#Retrieve information for one point----
+dirct = "/Users/eprau/EPR/Toulouse/UPS/Stage_M2/cyclone_res/"
+coord = list(fushan = c(121.5678, 24.7611),
+             luquillo = c(-65.816, 18.3262),
+             stdenis = c(55.44806, -20.87889))
+thres = 150
+year = 2001:2010
+mapname = "stdenis"
+lon = coord[[mapname]][1]
+lat = coord[[mapname]][2]
+
+cycl_filt = cycl[Season %in% year, ] #filter by year
+coord_cycl = SpatialPointsDataFrame(as.matrix(cycl_filt[, list(Longitude, Latitude)]), data.frame(pt = seq(1:nrow(cycl_filt))),
+                                    proj4string = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+mat = distm(coord_cycl, matrix(c(lon, lat), ncol = 2)) / 1000 #calculate distance
+cycl_sel = cycl_filt[which(mat < thres), ] #filter by distance
+year_name = ifelse(length(year) == 1, year, paste(year[1], rev(year)[1], sep = "_"))
+fwrite(cycl_sel, paste0(dirct, mapname, "_", year_name, "_sel.csv")) #save selected table
+todraw = unique(cycl_sel$Season_Name) #name of typhoons to be drawn
+
+#draw background map
+library(ggplot2)
+library(ggmap)
+bgmap = get_map(location = c(lon, lat), scale = 2, zoom = 5, maptype = "satellite", source = "google")
+
+#draw cyclone paths near one point
+ggmap(bgmap) + 
+  geom_point(data = as.data.frame(c(lon, lat)), shape = 8, col = "white") +
+  geom_path(data = cycl_filt[Season_Name %in% todraw, ], aes(x = Longitude, y = Latitude, group = Season_Name, color = Season_Name))
+ggsave(paste0(dirct, mapname, "_", year_name, "_path.png"))
+
+#Retrieve raster ----
 library(geosphere)
 library(sp)
 library(raster)
@@ -44,8 +75,8 @@ RetrCycl = function(year, x0, x1, y0, y1, resol, thres = 150, mapout = T, mapnam
   cycl_filt = cycl[Season %in% year, ] #filter by year
   
   #set up global coordinates
-  lon = rep(seq(x0 + resol / 2, x1 - resol / 2, by = resol), (y1 - y0))
-  lat = rep(seq(y1 - resol / 2, y0 + resol / 2, by = -resol), each = (x1 - x0))
+  lon = rep(seq(x0 + resol / 2, x1 - resol / 2, by = resol), (y1 - y0) / resol)
+  lat = rep(seq(y1 - resol / 2, y0 + resol / 2, by = -resol), each = (x1 - x0) / resol)
   coord = SpatialPointsDataFrame(matrix(c(lon, lat), ncol = 2), data.frame(ID = seq(1:length(lon))),
                                  proj4string = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
   
@@ -111,60 +142,7 @@ RetrCycl = function(year, x0, x1, y0, y1, resol, thres = 150, mapout = T, mapnam
   }
 }
 
-#RetrCycl(year = 2001:2003, x0 = 0, x1 = 180, y0 = 0, y1 = 90, resol = 1, mapname = "NE")
+RetrCycl(year = 2001:2003, x0 = 0, x1 = 180, y0 = 0, y1 = 90, resol = 1, mapname = "NE")
 RetrCycl(year = 2001:2003, x0 = 0, x1 = 180, y0 = 0, y1 = 90, resol = 0.5, mapname = "fine_NE")
 RetrCycl(year = 2001:2003, x0 = -180, x1 = 180, y0 = -90, y1 = 90, resol = 1, mapname = "world")
-#RetrCycl(year = 2001:2003, x0 = -180, x1 = 180, y0 = -90, y1 = 90, resol = 0.5, mapname = "fine_world")
-
-#Retrieve information ----
-
-#https://en.wikipedia.org/wiki/Decimal_degrees
-#https://gis.stackexchange.com/questions/142326/calculating-longitude-length-in-miles
-#https://gis.stackexchange.com/questions/8650/measuring-accuracy-of-latitude-and-longitude/8674#8674
-#111.32: distance of one degree in kilometers at equateur
-#https://stackoverflow.com/questions/31668163/geographic-geospatial-distance-between-2-lists-of-lat-lon-points-coordinates
-RetrCycl = function(base, lon, lat, thres){
-  #calculate distance from specified lcoation, and select only those under a threshold
-  cycl_sel = base[sqrt(((Longitude - lon) * 111.32 * cos(lat)) ^ 2 +
-                         ((Latitude - lat) * 111.32) ^ 2) <= thres, ]
-  todraw = unique(cycl_sel$Season_Name)
-  freq = length(todraw) / length(year)
-  dur = nrow(cycl_sel) / length(year)
-  wind_int = mean(tapply(cycl_sel$`Wind(WMO)`, cycl_sel$Season_Name, max))
-  press_int = mean(tapply(cycl_sel$`Pres(WMO)`, cycl_sel$Season_Name, min))
-  return(list(Names = todraw, Frequency = freq, Duration = dur, 
-              Wind_Intensity = wind_int, Pressure_Intensity = press_int))
-}
-
-dat = RetrCycl(cycl_filt, lon = 121.5578, lat = 24.7611, thres = 150)
-
-#Draw maps ----
-# library(maps)
-# library(mapdata)
-# dev.new(width = 5,height = 5)
-# map(database = "world", xlim = c(110, 135), ylim = c(10, 40))
-# lines(cycl_filt[Name %in% "LEKIMA", ]$Longitude, cycl_filt[Name %in% "LEKIMA", ]$Latitude)
-
-library(ggplot2)
-library(ggmap)
-tw = get_map(c(lon = lon, lat = lat), scale = 2, zoom = 5, maptype = "satellite", source = "google")
-
-
-if(use == "tokyo"){
-  ggmap(tw) + 
-    geom_point(data = as.data.frame(c(lon, lat)), shape = 8) +
-    geom_path(data = cycl_filt[Season_Name %in% todraw, ], aes(x = Longitude, y = Latitude, group = Season_Name, color = Season_Name))
-  year_name = ifelse(length(year) == 1, year, paste(year[1], rev(year)[1], sep = "_"))
-  ggsave(paste0("season", year_name, "jma.png"))
-} else if (use == "jtwc"){
-  ggmap(tw) + 
-    geom_point(data = as.data.frame(c(lon, lat)), shape = 8) +
-    geom_path(data = cycl_filt[Season_Name %in% todraw, ], aes(x = Longitude_for_mapping, y = Latitude_for_mapping, group = Season_Name, color = Season_Name))
-  year_name = ifelse(length(year) == 1, year, paste(year[1], rev(year)[1], sep = "_"))
-  ggsave(paste0("season", year_name, "jtwc.png"))
-  
-} else {
-  print("Incorrect database name")
-}
-
-fwrite(cycl_sel, "cyclone_sel.csv")
+RetrCycl(year = 2001:2003, x0 = -180, x1 = 180, y0 = -90, y1 = 90, resol = 0.5, mapname = "fine_world")
