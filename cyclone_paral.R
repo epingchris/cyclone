@@ -6,7 +6,7 @@ rm(list = ls())
 #Prepare ----
 library(data.table)
 cycl = fread("Allstorms.ibtracs_wmo.v03r10.csv", skip = 1)
-  
+
 #separate the row that describes unit
 unit = cycl[1, ]
 cycl = cycl[-1, ]
@@ -47,41 +47,43 @@ RetrCycl = function(year, x0, x1, y0, y1, resol, thres = 150, mapout = T, mapnam
   ras.dur = raster(xmn = x0, xmx = x1, ymn = y0, ymx = y1, resolution = resol)
   ras.wind = raster(xmn = x0, xmx = x1, ymn = y0, ymx = y1, resolution = resol)
   ras.press = raster(xmn = x0, xmx = x1, ymn = y0, ymx = y1, resolution = resol)
-  values(ras.freq) = unlist(get(frequ))
-  values(ras.dur) = unlist(get(dur))
-  values(ras.wind) = unlist(get(wind))
-  values(ras.press) = unlist(get(press))
-  writeRaster(ras.freq, paste0("/res_cycl/", mapname, "_freq.grd"), format = "raster")
-  writeRaster(ras.dur, paste0("/res_cycl/", mapname, "_dur.grd"), format = "raster")
-  writeRaster(ras.wind, paste0("/res_cycl/", mapname, "_wind.grd"), format = "raster")
-  writeRaster(ras.press, paste0("/res_cycl/", mapname, "_press.grd"), format = "raster")
+  values(ras.freq) = unlist(frequ)
+  values(ras.dur) = unlist(dur)
+  values(ras.wind) = unlist(wind)
+  values(ras.press) = unlist(press)
+  
+  dirct = "/res_cycl/"
+  writeRaster(ras.freq, paste0(dirct, mapname, "_freq.grd"), format = "raster")
+  writeRaster(ras.dur, paste0(dirct, mapname, "_dur.grd"), format = "raster")
+  writeRaster(ras.wind, paste0(dirct, mapname, "_wind.grd"), format = "raster")
+  writeRaster(ras.press, paste0(dirct, mapname, "_press.grd"), format = "raster")
   
   if(mapout){
     library(maps)
     
     #plot frequency
-    pdf(paste0("/res_cycl/", mapname, "_freq.pdf"))
+    pdf(paste0(dirct, mapname, "_freq.pdf"))
     plot(ras.freq, col = rev(heat.colors(300)))
     map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
     abline(h = 24, v = 121, lty = 3)
     dev.off()
     
     #plot duration
-    pdf(paste0("/res_cycl/", mapname, "_dur.pdf"))
+    pdf(paste0(dirct, mapname, "_dur.pdf"))
     plot(ras.dur, col = rev(heat.colors(300)))
     map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
     abline(h = 24, v = 121, lty = 3)
     dev.off()
     
     #plot wind speed
-    pdf(paste0("/res_cycl/", mapname, "_wind.pdf"))
+    pdf(paste0(dirct, mapname, "_wind.pdf"))
     plot(ras.wind, col = rev(heat.colors(300)))
     map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
     abline(h = 24, v = 121, lty = 3)
     dev.off()
     
     #plot atmospheric pressure
-    pdf(paste0("/res_cycl/", mapname, "_press.pdf"))
+    pdf(paste0(dirct, mapname, "_press.pdf"))
     arg = list(at = seq(800, 1100, by = 50), labels = seq(800, 1100, by = 50))
     plot(ras.press, col = heat.colors(300), breaks = 800:1100, axis.args = arg, zlim = c(800, 1100))
     map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
