@@ -35,14 +35,17 @@ if(use == "tokyo"){
 cycl$ISO_time = as.POSIXct(cycl$ISO_time, tz = "GMT")
 cycl$Season_Name = paste0(cycl$Season, cycl$Name)
 
-#Retrieve information for one point----
+#Retrieve information for one point ----
 dirct = "/Users/eprau/EPR/Toulouse/UPS/Stage_M2/cyclone_res/"
 coord = list(fushan = c(121.5678, 24.7611),
              luquillo = c(-65.816, 18.3262),
-             stdenis = c(55.44806, -20.87889))
+             stdenis = c(55.44806, -20.87889),
+             addu = c(73.158, -00.6413),
+             singa = c(103.8333, 1.28333),
+             norle = c(-90.08, 29.95))
 thres = 150
-year = 2001:2010
-mapname = "stdenis"
+year = 2001:2017
+mapname = "luquillo"
 lon = coord[[mapname]][1]
 lat = coord[[mapname]][2]
 
@@ -115,21 +118,28 @@ RetrCycl = function(year, x0, x1, y0, y1, resol, thres = 150, mapout = T, mapnam
     pdf(paste0(dirct, mapname, "_freq.pdf"))
     plot(ras.freq, col = rev(heat.colors(300)))
     map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
-    abline(h = 24, v = 121, lty = 3)
+    abline(h = 0, v = 0) #equator and prime meridian
+    abline(h = c(-23.5, 23.5), lty = 2) #tropics
+    abline(h = 24, v = 121, lty = 3) #fushan
+    
     dev.off()
     
     #plot duration
     pdf(paste0(dirct, mapname, "_dur.pdf"))
     plot(ras.dur, col = rev(heat.colors(300)))
     map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
-    abline(h = 24, v = 121, lty = 3)
+    abline(h = 0, v = 0) #equator and prime meridian
+    abline(h = c(-23.5, 23.5), lty = 2) #tropics
+    abline(h = 24, v = 121, lty = 3) #fushan
     dev.off()
     
     #plot wind speed
     pdf(paste0(dirct, mapname, "_wind.pdf"))
     plot(ras.wind, col = rev(heat.colors(300)))
     map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
-    abline(h = 24, v = 121, lty = 3)
+    abline(h = 0, v = 0) #equator and prime meridian
+    abline(h = c(-23.5, 23.5), lty = 2) #tropics
+    abline(h = 24, v = 121, lty = 3) #fushan
     dev.off()
     
     #plot atmospheric pressure
@@ -137,12 +147,14 @@ RetrCycl = function(year, x0, x1, y0, y1, resol, thres = 150, mapout = T, mapnam
     arg = list(at = seq(800, 1100, by = 50), labels = seq(800, 1100, by = 50))
     plot(ras.press, col = heat.colors(300), breaks = 800:1100, axis.args = arg, zlim = c(800, 1100))
     map(database = "world", xlim = c(x0, x1), ylim = c(y0, y1), add = T)
-    abline(h = 24, v = 121, lty = 3)
+    abline(h = 0, v = 0) #equator and prime meridian
+    abline(h = c(-23.5, 23.5), lty = 2) #tropics
+    abline(h = 24, v = 121, lty = 3) #fushan
     dev.off()
   }
 }
 
 RetrCycl(year = 2001:2003, x0 = 0, x1 = 180, y0 = 0, y1 = 90, resol = 1, mapname = "NE")
-RetrCycl(year = 2001:2003, x0 = 0, x1 = 180, y0 = 0, y1 = 90, resol = 0.5, mapname = "fine_NE")
-RetrCycl(year = 2001:2003, x0 = -180, x1 = 180, y0 = -90, y1 = 90, resol = 1, mapname = "world")
-RetrCycl(year = 2001:2003, x0 = -180, x1 = 180, y0 = -90, y1 = 90, resol = 0.5, mapname = "fine_world")
+# RetrCycl(year = 2001:2003, x0 = 0, x1 = 180, y0 = 0, y1 = 90, resol = 0.5, mapname = "fine_NE")
+# RetrCycl(year = 2001:2003, x0 = -180, x1 = 180, y0 = -90, y1 = 90, resol = 1, mapname = "world")
+# RetrCycl(year = 2001:2003, x0 = -180, x1 = 180, y0 = -90, y1 = 90, resol = 0.5, mapname = "fine_world")
